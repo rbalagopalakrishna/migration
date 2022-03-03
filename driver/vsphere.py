@@ -8,7 +8,6 @@ from pyVmomi import vim
 from threading import Thread
 from ssl import SSLError
  
- 
 def get_obj(content, vimtype):
     """Get VIMType Object.
  
@@ -23,43 +22,32 @@ def get_obj(content, vimtype):
 class VSphere:
  
     def __init__(self, creds):
+        #self.context = context
         self.content = None
         self._initialize_connection()
  
     def _initialize_connection(self):
- 
         try:
-            con = connect.SmartConnect(host=creds['host'], user=creds['username'], pwd=creds['password'], port=int(443))
+            con = connect.SmartConnect(host=creds['host'],
+                                       user=creds['username'],
+                                       pwd=creds['password'],
+                                       port=int(443))
             atexit.register(connect.Disconnect, con)
             self.content = con.RetrieveContent()
         except SSLError:
             context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
             context.verify_mode = ssl.CERT_NONE
-            con = connect.SmartConnect(host=d['host'], user=d['username'], pwd=d['pastword'], port=int(d['port']), sslContext=context)
+            con = connect.SmartConnect(host=creds['host'],
+                                       user=creds['username'],
+                                       pwd=creds['password'],
+                                       port=int(443),
+                                       sslContext=context)
             atexit.register(connect.Disconnect, con)
             self.content = con.RetrieveContent()
-        except Exception as error:
-            raise error
-#            msg = (_("Creating a connection to the host: %(h)s has failed, "
-#                     "Error: %(err)s") % {'h': d['host'], 'err': error})
-#            raise exception.VSphereException(msg)
-        self._initialized = True
- 
- 
- 
-    def get_instance_list(self):
-        if not self._initialized:
-            self._initialize_connection()
- 
-        instances = get_obj(self.content, [vim.VirtualMachine])
-        instance_list = []
-        for instance in instances:
-            if not instance.config:
-                continue
-            i = {'name': instance.config.name,
-                 'id_at_source': instance.config.instanceUuid}
-            instance_list.append(i)
-        return instance_list
+        except ConnectionRefusedError as error:
+            print(("Creating a connection to the host: %(h)s has failed, "
+                     "Error: %(err)s") % {'h': creds['host'], 'err': error})
+        self._initialized = True 
  
     def _get_instance_disk(self, device_url, dest_disk_path):
         url = device_url.url
@@ -105,6 +93,22 @@ class VSphere:
         if instance is None:
             raise exception.VSphereException("Instance not found.")
         return instance
+
+    def get_instance_list(self):
+        if not self._initialized:
+            self._initialize_connection()
+        try:
+            instances = get_obj(self.content, [vim.VirtualMachine])
+            instance_list = []
+            for instance in instances:
+                if not instance.config:
+                    continue
+                i = {'name': instance.config.name,
+                     'id_at_source': instance.config.instanceUuid}
+                instance_list.append(i)
+            return instance_list
+        except AttributeError as error:
+            print(error)
  
     def get_instance(self, instance_id, con_dir):
         if not self._initialized:
